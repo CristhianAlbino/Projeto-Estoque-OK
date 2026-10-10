@@ -5,6 +5,7 @@ on:
       - '**.php'
       - '**.js'
       - 'database/**'
+      - 'tests/**'
       - '.github/workflows/ci.yml'
   pull_request:
 permissions:
@@ -26,3 +27,46 @@ jobs:
           test -f database/schema.sql
           test -f includes/config.example.php
           test -f assets/img/carro.png
+  integration:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: rootpass
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -prootpass"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Preparar banco e configuração
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -m | grep -iq pdo_mysql
+          cp includes/config.example.php includes/config.local.php
+          sed -i "s/'password' => ''/'password' => 'rootpass'/" includes/config.local.php
+          php -r '
+          $pdo = new PDO("mysql:host=127.0.0.1;port=3306;charset=utf8mb4", "root", "rootpass");
+          $sql = preg_replace("/^--.*$/m", "", file_get_contents("database/schema.sql"));
+          foreach (explode(";", $sql) as $statement) {
+              if (trim($statement) !== "") $pdo->exec($statement);
+          }
+          echo "Schema importado com sucesso\n";
+          '
+      - name: Testar cadastro, login e saldo
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -S 127.0.0.1:8080 > /tmp/autopecas-php.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" || true' EXIT
+          for i in $(seq 1 30); do
+            if curl --silent --fail http://127.0.0.1:8080/index.php > /dev/null; then break; fi
+            sleep 1
+          done
+          python3 tests/integration.py
