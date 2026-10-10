@@ -49,8 +49,8 @@ try {
         }
         // Atualização atômica: duas operações concorrentes não podem gerar saldo negativo.
         $statement = $pdo->prepare(
-            'UPDATE pecas SET quantidade_estoque = quantidade_estoque + :adicionar
-             WHERE id = :id AND quantidade_estoque + :verificar >= 0'
+            'UPDATE pecas SET quantidade_estoque = CAST(quantidade_estoque AS SIGNED) + :adicionar
+             WHERE id = :id AND CAST(quantidade_estoque AS SIGNED) + :verificar >= 0'
         );
         $statement->execute([
             'adicionar' => $delta, 'id' => $id, 'verificar' => $delta,

@@ -60,7 +60,7 @@ subprocess.run([
 
 csrf = token()
 status, _ = call("api/logout.php", {"csrf_token": csrf})
-assert status == 200, "logout falhou"
+assert status == 200, ("logout falhou", status, _[:400])
 csrf = token()
 status, body = call("api/auth.php", {
     "action": "login", "csrf_token": csrf,

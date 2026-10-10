@@ -64,7 +64,7 @@ jobs:
           set -euo pipefail
           php -S 127.0.0.1:8080 > /tmp/autopecas-php.log 2>&1 &
           SERVER_PID=$!
-          trap 'kill "$SERVER_PID" || true' EXIT
+          trap 'cat /tmp/autopecas-php.log; kill "$SERVER_PID" || true' EXIT
           for i in $(seq 1 30); do
             if curl --silent --fail http://127.0.0.1:8080/index.php > /dev/null; then break; fi
             sleep 1
