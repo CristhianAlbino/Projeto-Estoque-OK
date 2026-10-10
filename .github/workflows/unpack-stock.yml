@@ -1,0 +1,54 @@
+name: Unpack archived stock project
+
+on:
+  push:
+    branches: ["fix/descompactar-estoque"]
+    paths:
+      - ".github/workflows/unpack-stock.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  unpack:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Unpack archived source without executing it
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y p7zip-full unar
+          mkdir -p "$RUNNER_TEMP/stock-extract" extracted
+          if ! 7z x -y "Projeto-Estoque-main.rar" "-o$RUNNER_TEMP/stock-extract"; then
+            unar -force-overwrite -o "$RUNNER_TEMP/stock-extract" "Projeto-Estoque-main.rar"
+          fi
+          rsync -a --exclude='.git' "$RUNNER_TEMP/stock-extract/" "extracted/"
+          find extracted -type l -delete
+          python3 - <<'PY'
+          from pathlib import Path
+          root = Path("extracted")
+          files = [p for p in root.rglob("*") if p.is_file()]
+          total = sum(p.stat().st_size for p in files)
+          print(f"Extracted {len(files)} files ({total:,} bytes)")
+          if not files or total > 50_000_000:
+              raise SystemExit("Empty extraction or unusually large archive")
+          for p in files[:100]:
+              print(p.as_posix())
+          PY
+      - name: Commit extracted source to the working branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add extracted
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: unpack original stock application archive"
+            git push
+          fi
