@@ -1,0 +1,28 @@
+name: Validar código
+on:
+  push:
+    paths:
+      - '**.php'
+      - '**.js'
+      - 'database/**'
+      - '.github/workflows/ci.yml'
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verificar PHP
+        shell: bash
+        run: |
+          set -euo pipefail
+          find . -type f -name '*.php' -not -path './.git/*' -print0 | xargs -0 -n1 php -l
+      - name: Verificar JavaScript
+        run: node --check assets/js/app.js
+      - name: Verificar arquivos necessários
+        run: |
+          test -f database/schema.sql
+          test -f includes/config.example.php
+          test -f assets/img/carro.png
